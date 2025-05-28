@@ -14,7 +14,7 @@ from hubspot.crm.associations import BatchInputPublicObjectId
 import altair as alt
 ############################################################################################################
 # Global Variables
-api_client = HubSpot(access_token='pat-eu1-df47fd7a-c64a-4531-bbe7-02479937230f')
+api_client = HubSpot(access_token=arizk_key)
 objects_dict = {
     'deals': ['hubspot_owner_id', 'dealstage', 'description','amount','dealname','hs_deal_stage_probability',
                     'createdate','closedate', 'notes_last_contacted','hs_object_id'],
