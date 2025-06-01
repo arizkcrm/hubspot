@@ -92,9 +92,9 @@ def get_monthly_list(df):
         mdf = pd.DataFrame(mlist).reset_index(drop=True)
         if len(mdf)>0:
             mdf = mdf.sort_values(by='Probability', ascending=False)
-            mdf['Probability'] = np.round(mdf['Probability'])
-            # mdf = mdf.head[5]
-        mlists.append(mdf)
+            mdf['Probability'] = round(mdf['Probability'].astype('float')*100)
+            mdf = mdf.head(5)
+        mlists.append(mdf.reset_index(drop=True))
     return mlists
 
 def get_tasks_values(df,toverdue):
@@ -220,19 +220,22 @@ def filter_df(df,date_key,status_key,cols_key,dashboard_key,selected):
     if df.shape[0] >0: 
         if dashboard_key != '':
             status_value = status_dict[status_key][1] if cols_key=='orders' else status_dict[status_key][0]
-            df = df[(df[date_key].between(start_date,end_date))&
+            df2 = df[(df[date_key].between(start_date,end_date))&
                     (df[status_key]==status_value)]
         else:
             status_value = status_dict[status_key][0]
-            df = df[(df[date_key]<end_date)&
-                    (df[status_key]!=status_value)]
-        df = df.loc[df['User'].isin(selected)]
-    df = df[cols_dict[cols_key]]
-    df.columns=cols_dict_renamed[cols_key]
-    if date_key == 'notes_last_contacted':
-        df = format_date_columns(df, 'Last Contacted Date')
-    df = format_date_columns(df, 'Date')
-    return df.reset_index(drop=True)
+            df2 = df[(df[date_key]<end_date)&
+                    (df[status_key]!=status_value)]    
+        if date_key == 'notes_last_contacted':
+            df3 = df[(df['createdate'].between(start_date,end_date))&
+                (df[status_key]=='contractsent')].reset_index(drop=True)
+            df2 = pd.concat([df2,df3], axis=0)
+            df2 = format_date_columns(df2, date_key).reset_index(drop=True)
+    df2 = df2[cols_dict[cols_key]]
+    df2.columns=cols_dict_renamed[cols_key]
+    df2 = df2.loc[df2['User'].isin(selected)]
+    df2 = format_date_columns(df2, 'Date')
+    return df2.reset_index(drop=True)
 
 def calculate_kpi(df_offers,df_orders,df_visits,df_tickets,u_name):
     visits_ = len(df_visits[df_visits['User']==u_name])*10
@@ -330,7 +333,7 @@ def get_weekly_dashboard():
     visits_df = filter_df(meetings,'hs_timestamp','hs_meeting_outcome','visits','weekly',selected_users)
     tickets_df = filter_df(tickets,'closed_date','hs_pipeline_stage','tickets','weekly',selected_users)
     tasks_df = filter_df(tasks,'hs_task_completion_date','hs_task_status','tasks','weekly',selected_users)
-    weekly_df_lists = [visits_df,offers_df,orders_df,tickets_df,tasks_df]
+    weekly_df_lists = [visits_df,offers_df.iloc[:,:-1],orders_df.iloc[:,:-1],tickets_df,tasks_df]
     weekly_df_labels = ['Visits','Offers','Orders','Closed Tickets','Completed Tasks']
     # Metrics Table
     kpi = []
@@ -351,7 +354,7 @@ def get_weekly_dashboard():
     st.dataframe(weekly_metrics_df, use_container_width=True)
 
     # bar chart
-    plot_user_comparison_bar_chart(weekly_metrics_df)
+    plot_user_comparison_bar_chart(weekly_metrics_df.iloc[:,1:])
     
     # Tables
     for j in range(len(weekly_df_labels)):
@@ -360,12 +363,12 @@ def get_weekly_dashboard():
 
 def get_monthly_dashboard():
     selected_users = get_selected_objects(users, 'name', 'Select user(s):')
-    monthly_df = filter_df(deals,'notes_last_contacted','dealstage','monthly','Monthly Dashboard',selected_users)
+    monthly_df = filter_df(deals,'notes_last_contacted','dealstage','monthly','Monthly Dashboard',
+                           selected_users)
     monthly_df_list = get_monthly_list(monthly_df)
     score = 0 
     for i in range(len(monthly_df_list)):
         score += len(monthly_df_list[i])
-    # score += [len(monthly_df_list[i]) for i in monthly_df_list]
     st.markdown("#### Score = "+str(round(score*100/40))+"%")
     # st.markdown("### Users Table")
     for k in range(len(offer_categs)):
