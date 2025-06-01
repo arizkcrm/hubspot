@@ -349,7 +349,8 @@ def get_weekly_dashboard():
     weekly_metrics_df = pd.DataFrame(weekly_metrics_dict, index=selected_users)
     st.markdown("### Users Table")
     st.dataframe(weekly_metrics_df, use_container_width=True)
-    
+
+    st.text('test')
     # bar chart
     plot_user_comparison_bar_chart(weekly_metrics_df)
     
