@@ -75,8 +75,30 @@ ticket_stages = {
     '4':'Closed'
     }
 dashboards = ['Weekly Dashboard','Monthly Dashboard','Tickets and Tasks']
+dates = ['Last Week', 'Last Month', 'Last Quarter', 'Last Year', 'Custom Range']
 ############################################################################################################
 #Methods:
+def get_instruments_from_categories(categs):
+    if categs == 'All':
+        insts = np.insert(line_items['name'].unique(),0,'All')
+    else:
+        insts = line_items[line_items['hs_product_type']==categs]['name'].unique()
+    return insts
+
+def get_selected_instruments():
+    categories = np.insert(offer_categs,0,'All')
+    st.markdown("### Instruments Filter")
+    categories_selectbox = st.selectbox(
+        "Monthly Categories",
+        (categories)
+    )
+    instruments = get_instruments_from_categories(categories_selectbox)
+    instruments_selectbox = st.selectbox(
+        "Instruments",
+        (instruments)
+    )
+    return categories_selectbox, instruments_selectbox
+
 def get_monthly_list(df):
     mlists = []
     for offer_categ in offer_categs:
@@ -103,7 +125,7 @@ def get_tasks_values(df,toverdue):
        no_tasks_overdue = len(toverdue)
        no_closed_tasks = no_tasks_all - no_tasks_overdue
        ratio_close_tasks = str(int(round((no_closed_tasks/no_tasks_all)*100,0))) +' %' if no_tasks_all>0 else "NA"
-       time_close_tasks = datetime.combine(date_until_selectbox, datetime.min.time()) - df['hs_timestamp'].dt.tz_localize(None)
+       time_close_tasks = datetime.combine(date_until, datetime.min.time()) - df['hs_timestamp'].dt.tz_localize(None)
        time_close_avg_tasks = int(round(np.mean(time_close_tasks.dt.days),0))
        time_close_avg_tasks_txt = str(int(round(np.mean(time_close_tasks.dt.days),0)))+" days" if no_closed_tasks >0 else "NA"
        time_close_avg_ratio_tasks = int(round(time_close_avg_tasks/no_closed_tasks,2)) if no_closed_tasks >0 else "NA"
@@ -280,14 +302,6 @@ def plot_user_comparison_bar_chart(df):
     # Display chart in Streamlit
     st.altair_chart(chart, use_container_width=True)
 
-# def get_bar_chart(categ,val):
-#     if np.sum(val)>0:
-#         data = pd.DataFrame(val,index=categ)
-#         df = pd.melt(data.reset_index(), id_vars=["index"])
-#         chart = (alt.Chart(df).mark_bar().encode(
-#         x=alt.X("value", type="quantitative", title=""),
-#         y=alt.Y("index", type="nominal", title=""),))
-#         return st.altair_chart(chart, use_container_width=True)
 ############################################################################################################
 # All Data
 companies = get_df('companies')
@@ -311,25 +325,43 @@ dashboards_selectbox = st.sidebar.selectbox(
     "Select Dashboard",
     (dashboards)
 )
-date_from_selectbox = st.sidebar.date_input(
+dates_selectbox = st.sidebar.selectbox(
+    "Date Range",
+    (dates)
+)
+if dates_selectbox == 'Custom Range':
+    date_from = st.sidebar.date_input(
     "Date From",
     date.today() - timedelta(days=6)
-)
-date_until_selectbox = st.sidebar.date_input(
+    )
+    date_until = st.sidebar.date_input(
     "Date Until",
     date.today() + timedelta(days=1)
-)
+    )
+else:
+    date_until = date.today() - timedelta(days=1)
+    if dates_selectbox == 'Last Week':
+        date_from = date.today() - timedelta(days=6)
+    elif dates_selectbox == 'Last Month':
+        date_from = date.today() - timedelta(days=30)
+    elif dates_selectbox == 'Last Quarter':
+        date_from = date.today() - timedelta(days=90)
+    elif dates_selectbox == 'Last Year':
+        date_from = date.today() - timedelta(days=365)
 ############################################################################################################
 # Global Variables
-start_date = str(date_from_selectbox)
-end_date = str(date_until_selectbox)
+start_date = str(date_from)
+end_date = str(date_until)
 ############################################################################################################
 # Weekly Dashboard
 def get_weekly_dashboard():
     selected_users = get_selected_objects(users, 'name', 'Select user(s):')
+    selected_categories, selected_instruments = get_selected_instruments()
     # Define Data
     offers_df = filter_df(deals,'createdate','dealstage','offers','weekly',selected_users)
+    offers_df = offers_df if selected_instruments == 'All' else offers_df[offers_df['Products'].apply(lambda x: selected_instruments in x)]
     orders_df = filter_df(deals,'closedate','dealstage','orders','weekly',selected_users)
+    orders_df = orders_df if selected_instruments == 'All' else orders_df[orders_df['Products'].apply(lambda x: selected_instruments in x)]
     visits_df = filter_df(meetings,'hs_timestamp','hs_meeting_outcome','visits','weekly',selected_users)
     tickets_df = filter_df(tickets,'closed_date','hs_pipeline_stage','tickets','weekly',selected_users)
     tasks_df = filter_df(tasks,'hs_task_completion_date','hs_task_status','tasks','weekly',selected_users)
@@ -350,6 +382,8 @@ def get_weekly_dashboard():
             current_df_counts.append(current_u_counts)
         weekly_metrics_dict[weekly_df_labels[i]] = current_df_counts
     weekly_metrics_df = pd.DataFrame(weekly_metrics_dict, index=selected_users)
+    
+    # Users table
     st.markdown("### Users Table")
     st.dataframe(weekly_metrics_df, use_container_width=True)
 
